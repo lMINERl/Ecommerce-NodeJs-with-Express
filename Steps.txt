@@ -1,0 +1,181 @@
+in project file
+
+1- npm init
+2- npm install express
+3- npm install eslint --save-dev
+
+in package.json > scripts [add code]
+"lint":"eslint src/js"  -> assuming application source in folder /src/js
+
+4- npm install express-generator -g
+5- express [folderName]
+
+in package.json [modify code]
+"version":"1.0.0",
+"private":false,
+"main":"./bin/www",
+
+6- npm install nodemon --save-dev  -> for live preview when editing files
+
+in package.json [add code]
+"scripts":{ 
+	"start":"node .",
+	"dev":"nodemon --inspect",
+	"debug":"nodemon --inspect",
+	"debug-brk":"nodemon --inspect-brk ."
+	...
+
+7- install mongodb and locate its bin folder eg."C:\Program Files\MongoDB\Server\4.0\bin>"
+8- in powershell cd [binFolder]
+9- ./mongo.exe
+
+in mongo [add database command]
+>use mongoose -> to create database
+>show dbs -> showing all databases you have
+
+10- npm install mongoose -> easy way to talk to mongo database
+
+in projectFolder
+11- create db.js file and [add code]
+> const mongoose = require('mongoose');
+> mongoose.connect(`mongodb://localhost:27017/ecommerce`,{useCreateIndex:true,useNewUrlParser:true});
+
+in app.js [add code]
+> require(`./db.js`);
+
+to add routes
+in folder routes [add file] users.js,products.js
+
+in app.js [add]
+> const usersRouter = require('./routes/users');
+> const productsRouter = require('./routes/products');
+
+to create models 
+in [projectFolder] [add folder] models
+in models [add file] users.js
+
+in cmd
+12- npm install bcrypt
+13- npm install jsonwebtoken
+
+in models/users.js [add code]
+> // model for managing tokens,hash,schema,verfy password
+> const mongoose = require('mongoose'); // database communication
+> const bcrypt = require('bcrypt'); // for hashing functions
+> const jwt = require('jsonwebtoken'); // tokens
+> const {promisify} = require('util'); // for turning call back to promise because jwt doesnt support promisises
+> const saltRounds = 10; //increasing the complexty of hashing
+> const secretKey = 'mySecretKey';  // secret key for token validation (salted hashing)
+
+> const sign = promisify(jwt.sign);
+> const verfiy = promisify(jwt.verifiy);
+>
+> // adding new schema to database
+> const schema = new mongoose.Schema({
+>	username:{
+>		type:String,
+>		required:true,
+>		index:{
+>			unique:true
+>		},
+>	},
+>	password:{
+>		type:String,
+>		required:true,
+>	},
+>	{
+>	toJSON:{
+>		hide:'password __v', //to hide the password and other values from response
+>		transform:true,	
+>	},
+>	autoIndex:true
+>});
+>
+> // apply the transform hide
+> schema.options.toJSON.transform = function (doc, ret, options) {
+> 	if (options.hide) {
+>		options.hide.split(' ').forEach((prop) => { delete ret[prop]; });
+>	}
+>	return ret;
+>}
+> const hashPassword = password => bcrypt.hash(password, saltRounds); // apply the hash to the given password using bcrypt.hash
+> 
+> // life cycle hook before saving the document in the database
+> schema.pre('save', async function(){
+>	const user = this;
+>	if(user.isNew || user.modifiedPaths.includes('password')){
+>		user.password = await hashPassword(user.password)
+>	}
+> });
+>
+> // adding for verifyPassword and adding it in prototype in the model user
+> schema.method('verifyPassword', function(comparePassword){
+>	return bcrypt.compare(comparePassword, this.password); // to avoid timed attacks
+> });
+> schema.method('generateToken', async function(){
+>	const user = this;
+>	console.log(user.id);
+>	const token = await sign({ _id: user.id },secretKey, { expiresIn: '5m' });
+>	return token;
+> });
+>
+> // static function in usermodel for decode token 
+> schema.static('decodeToken', function(token){
+>	return verify(token,secretKey);
+> });
+>
+> const User = mongoose.model('User', schema);
+> module.exports = User;
+
+
+to create middle wares or authentication if user name is found
+in [projectFolder] [add folder] middlewares
+in middlewares [add file] authentication.js
+in middlewares/authentication.js [add code]
+
+> const createError = require('http-errors');
+> const User = require('./../models/users');
+>
+> module.exports = async (req,res,next) => {
+>	const { authorization } = req.headers;
+>	if(!authorization) return next(createError(401));
+>	try{
+>		const payload = await User.decodeToken(authorization);
+>		req.user = await User.findById(payload._id); // built-in function takes id
+>		next(); // to continue excution
+>	} catch (err) {
+>		console.error(err);
+>		next(createError(401));
+>	}
+> }
+
+in routes/users.js [add code]
+
+> const User = require(`../../models/users`);
+> authenticationMiddleware = require(`./../middlewares/authentication`);
+> // base /users
+> // register user
+> router.post('/', (req, res, next) => {
+>	const { username, password } = req.body;
+>	const user = new User({ username, password });
+>	user.save((err)=>{
+>	if(err) return next(createError(400, err));
+>		res.send(user);
+>	});
+> });
+> router.post('/login', async (req, res, next) => {
+>	const { username, password } = req.body;
+>	if(!username || !password) return next(createError(400, 'missing arguments'))
+>	const user = await User.findOne({ username });
+>	if(!user) return next(createError(401));
+>	const isMatch = await user.verifyPassword(password).catch(console.error);
+>	if(!isMatch) return next(createError(401));
+>	const token= await user.generateToken();
+>	res.send({ token,user });
+> });
+>
+> // protect endpoint login authentication
+> router.get('/profile', authenticationMiddleware, (req, res, next)=>{
+>	res.send(req.user);
+> });
+> module.exports = router;

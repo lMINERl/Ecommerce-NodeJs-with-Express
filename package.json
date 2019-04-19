@@ -1,0 +1,27 @@
+{
+  "name": "ecommerce-project",
+  "version": "1.0.0",
+  "private": false,
+  "main": "./bin/www",
+  "scripts": {
+    "start": "node .",
+    "debug": "nodemon --inspect .",
+    "debug-brk": "nodemon --inspect-brk"
+  },
+  "dependencies": {
+    "bcrypt": "^3.0.5",
+    "cors": "^2.8.5",
+    "debug": "~2.6.9",
+    "express": "~4.16.0",
+    "http-errors": "^1.7.2",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^5.4.22",
+    "morgan": "~1.9.0",
+    "util": "^0.11.1",
+    "validator": "^10.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "nodemon": "^1.18.10"
+  }
+}
